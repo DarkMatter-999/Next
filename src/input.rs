@@ -12,6 +12,7 @@ pub enum Keys {
     Down,
     Left,
     Right,
+    Delete,
     Home,
     End,
     PageUp,
@@ -50,6 +51,11 @@ impl Input {
                         KeyCode::Down => Keys::Down,
                         KeyCode::Left => Keys::Left,
                         KeyCode::Right => Keys::Right,
+                        KeyCode::Home => Keys::Home,
+                        KeyCode::End => Keys::End,
+                        KeyCode::PageUp => Keys::PageUp,
+                        KeyCode::PageDown => Keys::PageDown,
+                        KeyCode::Delete => Keys::Delete,
                        _ => {println!("Other key pressed."); Keys::None},
                    }
                 }

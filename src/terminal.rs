@@ -48,7 +48,9 @@ impl Terminal {
         // execute!(io::stdout(), MoveTo(self.cursor.cx, self.cursor.cy)).unwrap();
         self.term_buf.push_str(& format!("\x1b[{};{}H", self.cursor.cx+1, self.cursor.cy+1));
         
-        self.term_buf.push_str("\x1b[H");
+        // Comment to not restore cursor to 0,0
+        // self.term_buf.push_str("\x1b[H");
+        
         self.term_buf.push_str("\x1b[?25h");
     }
 
@@ -110,7 +112,9 @@ impl Terminal {
             Keys::Down => if self.size.1 - 1 != self.cursor.cx {self.cursor.cx += 1},
             Keys::Up => if self.cursor.cx != 0 {self.cursor.cx -= 1},
             Keys::Right => if self.size.0 - 1 != self.cursor.cy {self.cursor.cy += 1},
-
+            
+            Keys::Home => self.cursor.cy = 0,
+            Keys::End => self.cursor.cy = self.size.0 - 1,
             _ => ()
         }
     }
