@@ -4,13 +4,26 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, read, Event, KeyEventKin
 
 use crate::screen::clear_screen;
 
+pub enum Keys {
+    Char(char),
+    Esc,
+    Enter,
+    Up,
+    Down,
+    Left,
+    Right,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+    None
+}
+
 pub struct Input {
-    pub key: char
 }
 
 impl Input {
-    pub fn handle_input(&mut self) {
-        let mut input_buffer = String::new();
+    pub fn handle_input(&mut self) -> Keys {
         if let Event::Key(KeyEvent { code, modifiers, kind, state: _ }) = read().expect("Failed to read key event") {
             if kind == KeyEventKind::Press {
                 if modifiers == KeyModifiers::CONTROL {
@@ -24,24 +37,25 @@ impl Input {
                             _ => ()
                         }
                     }
+                    return Keys::None;
                 } else {
 
-                    match code {
+                    return match code {
                         KeyCode::Char(c) => {
-                            self.key = c;
+                            return Keys::Char(c);
                         }
-                        KeyCode::Enter => input_buffer.push('\\'),
-                        KeyCode::Esc => {
-                            input_buffer.push('[');
-                            input_buffer.push('^');
-                        }
-                       _ => println!("Other key pressed."),
+                        KeyCode::Enter => Keys::Enter,
+                        KeyCode::Esc => Keys::Esc,
+                        KeyCode::Up => Keys::Up,
+                        KeyCode::Down => Keys::Down,
+                        KeyCode::Left => Keys::Left,
+                        KeyCode::Right => Keys::Right,
+                       _ => {println!("Other key pressed."); Keys::None},
                    }
-                    
-                   // println!("{}",input_buffer);
                 }
             }
         }
+        return Keys::None;
     }       
 }
 
