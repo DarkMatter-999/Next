@@ -15,13 +15,18 @@ struct Cursor {
     cy: u16
 }
 
+struct Line {
+    row: String,
+    render: String,
+}
+
 pub struct Terminal {
     term_buf: String,
     size: (u16, u16),
     cursor: Cursor, 
     input: Input,
     num_rows: u16,
-    rows: Vec<String>,
+    rows: Vec<Line>,
     rowoffset: u16,
     coloffset: u16,
 }
@@ -45,7 +50,7 @@ impl Terminal {
     }
 
     pub fn open_empty_editor(&mut self) {
-        self.rows = vec!["Hello World".to_string()];
+        self.rows = vec![Line{row:"Hello World".to_string(), render: "Hello World".to_string()}];
         self.num_rows = 0;
     }
 
@@ -55,12 +60,27 @@ impl Terminal {
         
         for line in reader.lines() {
             let row = line?;
-            self.rows.push(row);
+            self.append_line(row);
         }
 
         self.num_rows = self.rows.len() as u16;
 
         Ok(())
+    }
+
+    fn append_line(&mut self, row: String) {
+        let NUMTABS = 4;
+        let mut render = String::new();
+        for c in row.chars() {
+            if c == '\t' {
+                render.push_str(&" ".repeat(NUMTABS));
+            } else {
+                render.push(c);
+            }
+        }
+
+        let line = Line { row, render };
+        self.rows.push(line);
     }
 
     fn refresh_screen(&mut self) {
@@ -137,7 +157,7 @@ impl Terminal {
                     self.term_buf.push(c);
                 }
             } else {
-                let current_line = &self.rows[filerow as usize];
+                let current_line = &self.rows[filerow as usize].render;
 
                 if current_line.len() > self.size.0.into() {
                     self.term_buf.push_str(&current_line[self.coloffset as usize..(self.coloffset + self.size.0 - 1).into()]);
@@ -167,14 +187,14 @@ impl Terminal {
                 self.cursor.cy -= 1
             } else if self.cursor.cx > 0 {
                     self.cursor.cx -= 1;
-                    self.cursor.cy = self.rows[self.cursor.cx as usize].len() as u16;
+                    self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
                 },
             Keys::Down => if self.cursor.cx < self.num_rows {self.cursor.cx += 1},
             Keys::Up => if self.cursor.cx != 0 {self.cursor.cx -= 1},
             Keys::Right => if let Some(row) = row {
-                if self.cursor.cy < row.len() as u16 {
+                if self.cursor.cy < row.render.len() as u16 {
                     self.cursor.cy += 1;
-                } else if self.cursor.cy == row.len() as u16 {
+                } else if self.cursor.cy == row.render.len() as u16 {
                     self.cursor.cx += 1;
                     self.cursor.cy = 0;
                 }
@@ -189,7 +209,7 @@ impl Terminal {
             Some(&self.rows[self.cursor.cx as usize])
         };
         
-        let rowlen = if let Some(row) = row { row.len() } else { 0 } as u16;
+        let rowlen = if let Some(row) = row { row.render.len() } else { 0 } as u16;
         if self.cursor.cy > rowlen {
             self.cursor.cy = rowlen;
         }
@@ -210,15 +230,20 @@ impl Terminal {
             Keys::Up => self.move_cursor(Keys::Up),
             Keys::Right => self.move_cursor(Keys::Right),
             
-            Keys::Home => self.cursor.cy = 0,
-            Keys::End => self.cursor.cy = self.size.0 - 1,
+            Keys::Home => self.cursor.cy = 0, 
+            Keys::End => if self.cursor.cx < self.num_rows { self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16},
             Keys::PageUp => {
-                for _ in 0..self.size.1 - 1 {
+                self.cursor.cx = self.rowoffset;
+                for _ in 0..self.size.1 {
                     self.move_cursor(Keys::Up);
                 }
             },
             Keys::PageDown => {
-                for _ in 0..self.size.1 - 1 {
+                self.cursor.cx = self.rowoffset + self.size.1 - 1;
+                if self.cursor.cx > self.num_rows {
+                    self.cursor.cx = self.num_rows;
+                }
+                for _ in 0..self.size.1 {
                     self.move_cursor(Keys::Down);
                 }
             },
