@@ -29,6 +29,8 @@ pub struct Terminal {
     rows: Vec<Line>,
     rowoffset: u16,
     coloffset: u16,
+    filename: String,
+    status: String,
 }
 
 impl Terminal {
@@ -45,18 +47,22 @@ impl Terminal {
 
         let size = size().unwrap();
 
-        Terminal { term_buf: String::new(), size , cursor: Cursor { cx: 0, cy: 0 }, input: Input {}, num_rows:0, rows: Vec::new(), rowoffset: 0, coloffset: 0}
-        
+
+        Terminal { term_buf: String::new(), size: (size.0, size.1 - 2) , cursor: Cursor { cx: 0, cy: 0 }, input: Input {}, num_rows:0, rows: Vec::new(), rowoffset: 0, coloffset: 0, filename: String::new(), status: ":help Ctrl+Q to quit".to_string()}
+       
     }
 
     pub fn open_empty_editor(&mut self) {
         self.rows = vec![Line{row:"Hello World".to_string(), render: "Hello World".to_string()}];
         self.num_rows = 0;
+        self.filename = "[No name]".to_string();
     }
 
     pub fn open_editor(&mut self, filename: String) -> Result<(), Box<dyn Error>> {
-        let file = File::open(filename)?;
+        let file = File::open(&filename)?;
         let reader = io::BufReader::new(file);
+
+        self.filename = filename;
         
         for line in reader.lines() {
             let row = line?;
@@ -91,7 +97,9 @@ impl Terminal {
         self.term_buf.push_str("\x1b[H");
 
         self.fill_row('~');
-        
+
+        self.draw_status_bar(); 
+        self.draw_message_bar(); 
 
         // execute!(io::stdout(), MoveTo(self.cursor.cx, self.cursor.cy)).unwrap();
         self.term_buf.push_str(& format!("\x1b[{};{}H", (self.cursor.cx - self.rowoffset) + 1, (self.cursor.cy - self.coloffset) + 1));
@@ -168,9 +176,7 @@ impl Terminal {
             }
                 
             self.term_buf.push_str("\x1b[K");
-            if i < self.size.1 - 1 {
-                self.term_buf.push_str("\r\n");
-            } 
+            self.term_buf.push_str("\r\n");
 
         }
     }
@@ -249,5 +255,27 @@ impl Terminal {
             },
             _ => ()
         }
+    }
+
+    fn draw_status_bar(&mut self) {
+        self.term_buf.push_str("\x1b[7m");
+
+        let status = format!(" {} - {} lines", self.filename, self.rows.len());
+        let len = status.len();
+        let cursor = format!("{},{} ", self.cursor.cy, self.cursor.cx);
+        let len2 = cursor.len();
+        self.term_buf.push_str(&status);
+        self.term_buf.push_str(&" ".repeat(self.size.0 as usize - len - len2));
+        self.term_buf.push_str(&cursor);
+
+        self.term_buf.push_str("\x1b[m");
+        self.term_buf.push_str("\r\n");
+    }
+
+    fn draw_message_bar(&mut self) {
+        self.term_buf.push_str("\x1b[K");
+
+        self.term_buf.push_str(&self.status);
+
     }
 }
