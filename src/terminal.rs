@@ -10,6 +10,11 @@ use crossterm::terminal::{enable_raw_mode, size};
 
 use crate::input::{Input, Keys};
 
+enum Mode {
+    Normal,
+    Insert,
+}
+
 struct Cursor {
     cx: u16,
     cy: u16
@@ -31,6 +36,7 @@ pub struct Terminal {
     coloffset: u16,
     filename: String,
     status: String,
+    mode: Mode,
 }
 
 impl Terminal {
@@ -48,7 +54,7 @@ impl Terminal {
         let size = size().unwrap();
 
 
-        Terminal { term_buf: String::new(), size: (size.0, size.1 - 2) , cursor: Cursor { cx: 0, cy: 0 }, input: Input {}, num_rows:0, rows: Vec::new(), rowoffset: 0, coloffset: 0, filename: String::new(), status: ":help Ctrl+Q to quit".to_string()}
+        Terminal { term_buf: String::new(), size: (size.0, size.1 - 2) , cursor: Cursor { cx: 0, cy: 0 }, input: Input {}, num_rows:0, rows: Vec::new(), rowoffset: 0, coloffset: 0, filename: String::new(), status: ":help Ctrl+Q to quit".to_string(), mode: Mode::Normal}
        
     }
 
@@ -89,8 +95,9 @@ impl Terminal {
         self.rows.push(line);
     }
 
-    fn append_row(&mut self, row: String, idx: usize) {
+    fn update_line(&mut self, idx: usize) {
         let NUMTABS = 4;
+        let row = &self.rows[idx].row;
         let mut render = String::new();
         for c in row.chars() {
             if c == '\t' {
@@ -100,7 +107,7 @@ impl Terminal {
             }
         }
 
-        let line = Line { row, render };
+        let line = Line { row: row.to_string(), render };
         self.rows[idx] = line;
 
     } 
@@ -240,13 +247,46 @@ impl Terminal {
 
     fn handle_input(&mut self, key: Keys) {
         match key {
-            Keys::Char(c) => match c {
-                'h' => self.move_cursor(Keys::Left),
-                'j' => self.move_cursor(Keys::Down),
-                'k' => self.move_cursor(Keys::Up),
-                'l' => self.move_cursor(Keys::Right),
-                _ => ()
+            Keys::Char(c) => {
+                if let Mode::Normal = self.mode {
+                    match c {
+                    'h' => self.move_cursor(Keys::Left),
+                    'j' => self.move_cursor(Keys::Down),
+                    'k' => self.move_cursor(Keys::Up),
+                    'l' => self.move_cursor(Keys::Right),
+                    'i' => {
+                            self.mode = Mode::Insert;
+                            self.status = "-- INSERT --".to_string();
+                        },
+                    _ => ()
+                    }
+                } else {
+                    self.row_insert_char(self.cursor.cy as usize, c);
+                    self.move_cursor(Keys::Right);
+                }
             }
+            Keys::Enter => {
+                if let Mode::Normal = self.mode {
+                    self.move_cursor(Keys::Down);
+                } else {
+                    self.move_cursor(Keys::Down);
+                    self.rows.insert(self.cursor.cx as usize, Line { row: String::new(), render: String::new() });
+                    self.num_rows += 1;
+                }
+            }
+            Keys::BackSpace => {
+                if let Mode::Normal = self.mode {
+                    self.move_cursor(Keys::Left);
+                } else {
+                    self.rows[self.cursor.cx as usize].row.remove(self.cursor.cy as usize);
+                    self.move_cursor(Keys::Left);
+                    self.update_line(self.cursor.cx as usize);
+                }
+                            }
+            Keys::Esc => {
+                self.mode = Mode::Normal;
+                self.status = "-- NORMAL --".to_string();
+            },
             Keys::Left => self.move_cursor(Keys::Left),
             Keys::Down => self.move_cursor(Keys::Down),
             Keys::Up => self.move_cursor(Keys::Up),
@@ -295,13 +335,16 @@ impl Terminal {
 
     }
 
-
-    fn row_insert_char(&mut self, mut at: usize, c: char) {
-        if at < 0 || at > self.rows[self.cursor.cx as usize].row.len() {
-            at = self.rows[self.cursor.cx as usize].row.len() ;
+    fn row_insert_char(&mut self, at: usize, c: char) {
+        let at = if at > self.rows[self.cursor.cx as usize].row.len() { self.rows[self.cursor.cx as usize].row.len() as usize } else { at };
+        if self.cursor.cy > self.num_rows {
+            self.rows[self.cursor.cx as usize].row.insert(at, c);
+            self.update_line(self.cursor.cx as usize);
+        } else {
+            self.rows.push(Line { row: String::new(), render: String::new() });
+            self.rows[self.cursor.cx as usize].row.insert(at, c);
+            self.update_line(self.cursor.cx as usize);
         }
-
-        self.rows[self.cursor.cx as usize].row.insert(at, c);
     }
 
 }

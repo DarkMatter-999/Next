@@ -17,6 +17,7 @@ pub enum Keys {
     End,
     PageUp,
     PageDown,
+    BackSpace,
     None
 }
 
@@ -56,6 +57,7 @@ impl Input {
                         KeyCode::PageUp => Keys::PageUp,
                         KeyCode::PageDown => Keys::PageDown,
                         KeyCode::Delete => Keys::Delete,
+                        KeyCode::Backspace => Keys::BackSpace,
                        _ => {println!("Other key pressed."); Keys::None},
                    }
                 }
