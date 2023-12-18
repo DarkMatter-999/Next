@@ -89,6 +89,22 @@ impl Terminal {
         self.rows.push(line);
     }
 
+    fn append_row(&mut self, row: String, idx: usize) {
+        let NUMTABS = 4;
+        let mut render = String::new();
+        for c in row.chars() {
+            if c == '\t' {
+                render.push_str(&" ".repeat(NUMTABS));
+            } else {
+                render.push(c);
+            }
+        }
+
+        let line = Line { row, render };
+        self.rows[idx] = line;
+
+    } 
+
     fn refresh_screen(&mut self) {
         self.editor_scroll();
 
@@ -278,4 +294,14 @@ impl Terminal {
         self.term_buf.push_str(&self.status);
 
     }
+
+
+    fn row_insert_char(&mut self, mut at: usize, c: char) {
+        if at < 0 || at > self.rows[self.cursor.cx as usize].row.len() {
+            at = self.rows[self.cursor.cx as usize].row.len() ;
+        }
+
+        self.rows[self.cursor.cx as usize].row.insert(at, c);
+    }
+
 }
