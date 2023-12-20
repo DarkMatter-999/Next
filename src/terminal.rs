@@ -269,8 +269,17 @@ impl Terminal {
                 if let Mode::Normal = self.mode {
                     self.move_cursor(Keys::Down);
                 } else {
+                    let line = self.rows[self.cursor.cx as usize].row.clone();
+                    let currline = &line[..self.cursor.cy as usize];
+                    let newline = &line[self.cursor.cy as usize..];
+                    self.rows[self.cursor.cx as usize].row = currline.to_string();
+                    self.update_line(self.cursor.cx as usize);
+
                     self.move_cursor(Keys::Down);
-                    self.rows.insert(self.cursor.cx as usize, Line { row: String::new(), render: String::new() });
+                    self.rows.insert(self.cursor.cx as usize, Line { row: newline.to_string(), render: newline.to_string() });
+                    self.update_line(self.cursor.cx as usize);
+
+                    self.cursor.cy = 0;
                     self.num_rows += 1;
                 }
             }
@@ -278,11 +287,27 @@ impl Terminal {
                 if let Mode::Normal = self.mode {
                     self.move_cursor(Keys::Left);
                 } else {
-                    self.rows[self.cursor.cx as usize].row.remove(self.cursor.cy as usize);
-                    self.move_cursor(Keys::Left);
-                    self.update_line(self.cursor.cx as usize);
+                    let row_idx = self.cursor.cx as usize;
+                    let col_idx = self.cursor.cy as usize;
+
+                    if col_idx > 0 {
+                        self.rows[row_idx].row.remove(col_idx - 1);
+                        self.update_line(row_idx);
+                        self.move_cursor(Keys::Left);
+                    } else if row_idx > 0 {
+                        let current_line_len = self.rows[row_idx].row.len();
+                        self.move_cursor(Keys::Up);
+
+                        let prev_line = self.rows[row_idx].row.clone();
+                        self.rows.remove(row_idx);
+                        self.cursor.cy = current_line_len as u16 + 1;
+
+                        self.rows[row_idx - 1].row.push_str(&prev_line);
+                        self.update_line(row_idx - 1);
+                        self.num_rows -= 1;
+                    }                
                 }
-                            }
+            },
             Keys::Esc => {
                 self.mode = Mode::Normal;
                 self.status = "-- NORMAL --".to_string();
