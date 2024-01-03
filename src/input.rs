@@ -18,7 +18,9 @@ pub enum Keys {
     PageUp,
     PageDown,
     BackSpace,
-    None
+    None,
+
+    SaveFile
 }
 
 pub struct Input {
@@ -35,6 +37,9 @@ impl Input {
                                 println!("Exiting.");
                                 clear_screen();
                                 exit(0);
+                            },
+                            'w' => {
+                                return Keys::SaveFile;
                             }
                             _ => ()
                         }

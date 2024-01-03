@@ -3,6 +3,7 @@ use std::io::Write;
 use std::process::exit;
 use std::error::Error;
 use std::fs::File;
+use std::fs;
 use std::io::BufRead;
 
 use crossterm::terminal::{enable_raw_mode, size};
@@ -78,6 +79,20 @@ impl Terminal {
         self.num_rows = self.rows.len() as u16;
 
         Ok(())
+    }
+
+    pub fn save(&mut self) {
+        let contents = self.convert_rows_to_str();
+
+        match fs::write(&self.filename, contents) {
+            Ok(()) => self.status = format!("Successfully written {} lines to {}", self.rows.len(), self.filename),
+            Err(err) => self.status = err.to_string()
+        }
+
+    }
+
+    fn convert_rows_to_str(&mut self) -> String {
+        return self.rows.iter().map(|line| &line.row as &str).collect::<Vec<&str>>().join("\n");
     }
 
     fn append_line(&mut self, row: String) {
@@ -334,6 +349,7 @@ impl Terminal {
                     self.move_cursor(Keys::Down);
                 }
             },
+            Keys::SaveFile => self.save(),
             _ => ()
         }
     }
@@ -362,7 +378,7 @@ impl Terminal {
 
     fn row_insert_char(&mut self, at: usize, c: char) {
         let at = if at > self.rows[self.cursor.cx as usize].row.len() { self.rows[self.cursor.cx as usize].row.len() as usize } else { at };
-        if self.cursor.cy > self.num_rows {
+        if self.cursor.cx < self.num_rows {
             self.rows[self.cursor.cx as usize].row.insert(at, c);
             self.update_line(self.cursor.cx as usize);
         } else {
