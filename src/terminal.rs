@@ -38,6 +38,7 @@ pub struct Terminal {
     filename: String,
     status: String,
     mode: Mode,
+    dirty: u32,
 }
 
 impl Terminal {
@@ -55,7 +56,7 @@ impl Terminal {
         let size = size().unwrap();
 
 
-        Terminal { term_buf: String::new(), size: (size.0, size.1 - 2) , cursor: Cursor { cx: 0, cy: 0 }, input: Input {}, num_rows:0, rows: Vec::new(), rowoffset: 0, coloffset: 0, filename: String::new(), status: ":help Ctrl+Q to quit".to_string(), mode: Mode::Normal}
+        Terminal { term_buf: String::new(), size: (size.0, size.1 - 2) , cursor: Cursor { cx: 0, cy: 0 }, input: Input {}, num_rows:0, rows: Vec::new(), rowoffset: 0, coloffset: 0, filename: String::new(), status: ":help Ctrl+Q to quit".to_string(), mode: Mode::Normal, dirty: 0}
        
     }
 
@@ -85,7 +86,10 @@ impl Terminal {
         let contents = self.convert_rows_to_str();
 
         match fs::write(&self.filename, contents) {
-            Ok(()) => self.status = format!("Successfully written {} lines to {}", self.rows.len(), self.filename),
+            Ok(()) => {
+                self.status = format!("Successfully written {} lines to {}", self.rows.len(), self.filename);
+                self.dirty = 0;
+            },
             Err(err) => self.status = err.to_string()
         }
 
@@ -272,6 +276,13 @@ impl Terminal {
                     'i' => {
                             self.mode = Mode::Insert;
                             self.status = "-- INSERT --".to_string();
+                            if self.cursor.cx >= self.num_rows {
+                                self.cursor.cx -= 1;
+                            }
+
+                            if self.cursor.cy as usize >= self.rows[self.cursor.cx as usize].render.len() {
+                                self.cursor.cy -= 1;
+                            }
                         },
                     _ => ()
                     }
@@ -296,6 +307,7 @@ impl Terminal {
 
                     self.cursor.cy = 0;
                     self.num_rows += 1;
+                    self.dirty += 1;
                 }
             }
             Keys::BackSpace => {
@@ -357,7 +369,7 @@ impl Terminal {
     fn draw_status_bar(&mut self) {
         self.term_buf.push_str("\x1b[7m");
 
-        let status = format!(" {} - {} lines", self.filename, self.rows.len());
+        let status = format!(" {}{}- {} lines", self.filename, if self.dirty != 0 {" (modified) "} else {""} , self.rows.len());
         let len = status.len();
         let cursor = format!("{},{} ", self.cursor.cy, self.cursor.cx);
         let len2 = cursor.len();
@@ -386,6 +398,8 @@ impl Terminal {
             self.rows[self.cursor.cx as usize].row.insert(at, c);
             self.update_line(self.cursor.cx as usize);
         }
+
+        self.dirty += 1;
     }
 
 }
