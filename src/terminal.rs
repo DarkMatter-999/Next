@@ -61,7 +61,7 @@ impl Terminal {
     }
 
     pub fn open_empty_editor(&mut self) {
-        self.rows = vec![Line{row:"Hello World".to_string(), render: "Hello World".to_string()}];
+        self.rows = vec![Line{row:"".to_string(), render: "".to_string()}];
         self.num_rows = 0;
         self.filename = "[No name]".to_string();
     }
@@ -276,11 +276,18 @@ impl Terminal {
                     'i' => {
                             self.mode = Mode::Insert;
                             self.status = "-- INSERT --".to_string();
-                            if self.cursor.cx >= self.num_rows {
+                            if self.num_rows == 0 {
+                                self.rows.insert(self.cursor.cx as usize, Line { row: "".to_string(), render: "".to_string() });
+                                self.update_line(self.cursor.cx as usize);
+                                self.cursor.cy = 0;
+                                self.num_rows += 1;
+                                self.dirty += 1;
+                            }
+                            if self.cursor.cx > self.num_rows {
                                 self.cursor.cx -= 1;
                             }
 
-                            if self.cursor.cy as usize >= self.rows[self.cursor.cx as usize].render.len() {
+                            if self.cursor.cy as usize > self.rows[self.cursor.cx as usize].render.len() {
                                 self.cursor.cy -= 1;
                             }
                         },
@@ -322,16 +329,16 @@ impl Terminal {
                         self.update_line(row_idx);
                         self.move_cursor(Keys::Left);
                     } else if row_idx > 0 {
-                        let current_line_len = self.rows[row_idx].row.len();
-                        self.move_cursor(Keys::Up);
-
-                        let prev_line = self.rows[row_idx].row.clone();
+                        let prev_line_len = self.rows[row_idx - 1].row.len();
+                        let current_line = self.rows[row_idx].row.clone();
+                        self.rows[row_idx - 1].row.push_str(&current_line);
                         self.rows.remove(row_idx);
-                        self.cursor.cy = current_line_len as u16 + 1;
 
-                        self.rows[row_idx - 1].row.push_str(&prev_line);
+                        self.cursor.cy = prev_line_len as u16;
                         self.update_line(row_idx - 1);
+
                         self.num_rows -= 1;
+                        self.move_cursor(Keys::Up);
                     }                
                 }
             },
