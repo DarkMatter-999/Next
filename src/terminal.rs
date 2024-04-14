@@ -1,4 +1,4 @@
-use std::io;
+use std::{fmt::Pointer, io};
 use std::io::Write;
 use std::process::exit;
 use std::error::Error;
@@ -35,7 +35,7 @@ pub struct Terminal {
     rows: Vec<Line>,
     rowoffset: u16,
     coloffset: u16,
-    filename: String,
+    filename: Option<String>,
     status: String,
     mode: Mode,
     dirty: u32,
@@ -56,21 +56,21 @@ impl Terminal {
         let size = size().unwrap();
 
 
-        Terminal { term_buf: String::new(), size: (size.0, size.1 - 2) , cursor: Cursor { cx: 0, cy: 0 }, input: Input {}, num_rows:0, rows: Vec::new(), rowoffset: 0, coloffset: 0, filename: String::new(), status: ":help Ctrl+Q to quit".to_string(), mode: Mode::Normal, dirty: 0}
+        Terminal { term_buf: String::new(), size: (size.0, size.1 - 2) , cursor: Cursor { cx: 0, cy: 0 }, input: Input {}, num_rows:0, rows: Vec::new(), rowoffset: 0, coloffset: 0, filename: None, status: ":help Ctrl+Q to quit".to_string(), mode: Mode::Normal, dirty: 0}
        
     }
 
     pub fn open_empty_editor(&mut self) {
         self.rows = vec![Line{row:"".to_string(), render: "".to_string()}];
         self.num_rows = 0;
-        self.filename = "[No name]".to_string();
+        self.filename = None;
     }
 
     pub fn open_editor(&mut self, filename: String) -> Result<(), Box<dyn Error>> {
         let file = File::open(&filename)?;
         let reader = io::BufReader::new(file);
 
-        self.filename = filename;
+        self.filename = Some(filename);
         
         for line in reader.lines() {
             let row = line?;
@@ -85,12 +85,14 @@ impl Terminal {
     pub fn save(&mut self) {
         let contents = self.convert_rows_to_str();
 
-        match fs::write(&self.filename, contents) {
-            Ok(()) => {
-                self.status = format!("Successfully written {} lines to {}", self.rows.len(), self.filename);
-                self.dirty = 0;
-            },
-            Err(err) => self.status = err.to_string()
+        if let Some(filename) = &self.filename {
+            match fs::write(&filename, contents) {
+                Ok(()) => {
+                    self.status = format!("Successfully written {} lines to {}", self.rows.len(), filename);
+                    self.dirty = 0;
+                },
+                Err(err) => self.status = err.to_string()
+            }
         }
 
     }
@@ -223,47 +225,50 @@ impl Terminal {
         }
     }
 
-    fn move_cursor(&mut self, key: Keys) {
-        let row = if self.cursor.cx >= self.num_rows {
-          None
-        } else {
-            Some(&self.rows[self.cursor.cx as usize])
-        };
-
-        match key {
-            Keys::Left => if self.cursor.cy != 0 {
-                self.cursor.cy -= 1
-            } else if self.cursor.cx > 0 {
-                    self.cursor.cx -= 1;
-                    self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
-                },
-            Keys::Down => if self.cursor.cx < self.num_rows {self.cursor.cx += 1},
-            Keys::Up => if self.cursor.cx != 0 {self.cursor.cx -= 1},
-            Keys::Right => if let Some(row) = row {
-                if self.cursor.cy < row.render.len() as u16 {
-                    self.cursor.cy += 1;
-                } else if self.cursor.cy == row.render.len() as u16 {
+fn move_cursor(&mut self, key: Keys) {
+    match key {
+        Keys::Left => if self.cursor.cy != 0 {
+            self.cursor.cy -= 1
+        } else if self.cursor.cx > 0 {
+            self.cursor.cx -= 1;
+            self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
+        },
+        Keys::Down => if self.cursor.cx < self.num_rows - 1 {
+            self.cursor.cx += 1;
+            if self.cursor.cx < self.num_rows {
+                let row_len = self.rows[self.cursor.cx as usize].render.len() as u16;
+                if self.cursor.cy > row_len {
+                    self.cursor.cy = row_len;
+                }
+            }
+        },
+        Keys::Up => if self.cursor.cx != 0 {
+            self.cursor.cx -= 1;
+            if self.cursor.cx < self.num_rows {
+                let row_len = self.rows[self.cursor.cx as usize].render.len() as u16;
+                if self.cursor.cy > row_len {
+                    self.cursor.cy = row_len;
+                }
+            }
+        },
+        Keys::Right => if self.cursor.cx < self.num_rows {
+            let row_len = self.rows[self.cursor.cx as usize].render.len() as u16;
+            if self.cursor.cy < row_len {
+                self.cursor.cy += 1;
+            } else if self.cursor.cy == row_len {
+                if self.cursor.cx < self.num_rows - 1 {
                     self.cursor.cx += 1;
                     self.cursor.cy = 0;
                 }
-                    
-                },
-            _ => ()
-        }
-
-        let row = if self.cursor.cx >= self.num_rows {
-          None
-        } else {
-            Some(&self.rows[self.cursor.cx as usize])
-        };
-        
-        let rowlen = if let Some(row) = row { row.render.len() } else { 0 } as u16;
-        if self.cursor.cy > rowlen {
-            self.cursor.cy = rowlen;
-        }
-
+            } 
+            },
+        _ => ()
     }
-
+    
+    if self.cursor.cy > self.rows[self.cursor.cx as usize].render.len() as u16 {
+        self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
+    }
+}
     fn handle_input(&mut self, key: Keys) {
         match key {
             Keys::Char(c) => {
@@ -283,8 +288,10 @@ impl Terminal {
                                 self.num_rows += 1;
                                 self.dirty += 1;
                             }
-                            if self.cursor.cx > self.num_rows {
+
+                            if self.cursor.cx >= self.num_rows {
                                 self.cursor.cx -= 1;
+                                self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
                             }
 
                             if self.cursor.cy as usize > self.rows[self.cursor.cx as usize].render.len() {
@@ -300,7 +307,9 @@ impl Terminal {
             }
             Keys::Enter => {
                 if let Mode::Normal = self.mode {
-                    self.move_cursor(Keys::Down);
+                    if self.cursor.cx < self.num_rows - 1 {
+                        self.move_cursor(Keys::Down);
+                    }
                 } else {
                     let line = self.rows[self.cursor.cx as usize].row.clone();
                     let currline = &line[..self.cursor.cy as usize];
@@ -308,7 +317,7 @@ impl Terminal {
                     self.rows[self.cursor.cx as usize].row = currline.to_string();
                     self.update_line(self.cursor.cx as usize);
 
-                    self.move_cursor(Keys::Down);
+                    self.cursor.cx += 1;
                     self.rows.insert(self.cursor.cx as usize, Line { row: newline.to_string(), render: newline.to_string() });
                     self.update_line(self.cursor.cx as usize);
 
@@ -376,7 +385,13 @@ impl Terminal {
     fn draw_status_bar(&mut self) {
         self.term_buf.push_str("\x1b[7m");
 
-        let status = format!(" {}{}- {} lines", self.filename, if self.dirty != 0 {" (modified) "} else {""} , self.rows.len());
+        let mut filename = "[No Name]".to_string();
+        if let Some(name) = &self.filename {
+            filename = name.to_string(); 
+        }
+        
+        let status = format!(" {}{}- {} lines", filename, if self.dirty != 0 {" (modified) "} else {""} , self.rows.len());
+
         let len = status.len();
         let cursor = format!("{},{} ", self.cursor.cy, self.cursor.cx);
         let len2 = cursor.len();
