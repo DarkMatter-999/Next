@@ -225,50 +225,53 @@ impl Terminal {
         }
     }
 
-fn move_cursor(&mut self, key: Keys) {
-    match key {
-        Keys::Left => if self.cursor.cy != 0 {
-            self.cursor.cy -= 1
-        } else if self.cursor.cx > 0 {
-            self.cursor.cx -= 1;
-            self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
-        },
-        Keys::Down => if self.cursor.cx < self.num_rows - 1 {
-            self.cursor.cx += 1;
-            if self.cursor.cx < self.num_rows {
-                let row_len = self.rows[self.cursor.cx as usize].render.len() as u16;
-                if self.cursor.cy > row_len {
-                    self.cursor.cy = row_len;
-                }
-            }
-        },
-        Keys::Up => if self.cursor.cx != 0 {
-            self.cursor.cx -= 1;
-            if self.cursor.cx < self.num_rows {
-                let row_len = self.rows[self.cursor.cx as usize].render.len() as u16;
-                if self.cursor.cy > row_len {
-                    self.cursor.cy = row_len;
-                }
-            }
-        },
-        Keys::Right => if self.cursor.cx < self.num_rows {
-            let row_len = self.rows[self.cursor.cx as usize].render.len() as u16;
-            if self.cursor.cy < row_len {
-                self.cursor.cy += 1;
-            } else if self.cursor.cy == row_len {
-                if self.cursor.cx < self.num_rows - 1 {
-                    self.cursor.cx += 1;
-                    self.cursor.cy = 0;
-                }
-            } 
+    fn move_cursor(&mut self, key: Keys) {
+        match key {
+            Keys::Left => if self.cursor.cy != 0 {
+                self.cursor.cy -= 1
+            } else if self.cursor.cx > 0 {
+                self.cursor.cx -= 1;
+                self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
             },
-        _ => ()
+            Keys::Down => if self.cursor.cx < self.num_rows {
+                self.cursor.cx += 1;
+                if self.cursor.cx < self.num_rows {
+                    let row_len = self.rows[self.cursor.cx as usize].render.len() as u16;
+                    if self.cursor.cy > row_len {
+                        self.cursor.cy = row_len;
+                    }
+                } else {
+                    self.cursor.cx = self.num_rows - 1;
+                }
+            },
+            Keys::Up => if self.cursor.cx != 0 {
+                self.cursor.cx -= 1;
+                if self.cursor.cx < self.num_rows {
+                    let row_len = self.rows[self.cursor.cx as usize].render.len() as u16;
+                    if self.cursor.cy > row_len {
+                        self.cursor.cy = row_len;
+                    }
+                }
+            },
+            Keys::Right => if self.cursor.cx < self.num_rows {
+                let row_len = self.rows[self.cursor.cx as usize].render.len() as u16;
+                if self.cursor.cy < row_len {
+                    self.cursor.cy += 1;
+                } else if self.cursor.cy == row_len {
+                    if self.cursor.cx < self.num_rows - 1 {
+                        self.cursor.cx += 1;
+                        self.cursor.cy = 0;
+                    }
+                } 
+                },
+            _ => ()
+        }
+        
+        if self.cursor.cy > self.rows[self.cursor.cx as usize].render.len() as u16 {
+            self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
+        }
     }
-    
-    if self.cursor.cy > self.rows[self.cursor.cx as usize].render.len() as u16 {
-        self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
-    }
-}
+
     fn handle_input(&mut self, key: Keys) {
         match key {
             Keys::Char(c) => {
@@ -307,7 +310,7 @@ fn move_cursor(&mut self, key: Keys) {
             }
             Keys::Enter => {
                 if let Mode::Normal = self.mode {
-                    if self.cursor.cx < self.num_rows - 1 {
+                    if self.cursor.cx < self.num_rows {
                         self.move_cursor(Keys::Down);
                     }
                 } else {
