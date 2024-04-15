@@ -14,6 +14,7 @@ use crate::input::{Input, Keys};
 enum Mode {
     Normal,
     Insert,
+    Command,
 }
 
 struct Cursor {
@@ -273,115 +274,168 @@ impl Terminal {
     }
 
     fn handle_input(&mut self, key: Keys) {
-        match key {
-            Keys::Char(c) => {
-                if let Mode::Normal = self.mode {
-                    match c {
-                    'h' => self.move_cursor(Keys::Left),
-                    'j' => self.move_cursor(Keys::Down),
-                    'k' => self.move_cursor(Keys::Up),
-                    'l' => self.move_cursor(Keys::Right),
-                    'i' => {
-                            self.mode = Mode::Insert;
-                            self.status = "-- INSERT --".to_string();
-                            if self.num_rows == 0 {
-                                self.rows.insert(self.cursor.cx as usize, Line { row: "".to_string(), render: "".to_string() });
-                                self.update_line(self.cursor.cx as usize);
-                                self.cursor.cy = 0;
-                                self.num_rows += 1;
-                                self.dirty += 1;
-                            }
+        match self.mode {
+            Mode::Normal => {
+                match key {
+                    Keys::Char(c) => {
+                        match c {
+                            'h' => self.move_cursor(Keys::Left),
+                            'j' => self.move_cursor(Keys::Down),
+                            'k' => self.move_cursor(Keys::Up),
+                            'l' => self.move_cursor(Keys::Right),
+                            'i' => {
+                                    self.mode = Mode::Insert;
+                                    self.status = "-- INSERT --".to_string();
+                                    if self.num_rows == 0 {
+                                        self.rows.insert(self.cursor.cx as usize, Line { row: "".to_string(), render: "".to_string() });
+                                        self.update_line(self.cursor.cx as usize);
+                                        self.cursor.cy = 0;
+                                        self.num_rows += 1;
+                                        self.dirty += 1;
+                                    }
 
-                            if self.cursor.cx >= self.num_rows {
-                                self.cursor.cx -= 1;
-                                self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
-                            }
+                                    if self.cursor.cx >= self.num_rows {
+                                        self.cursor.cx -= 1;
+                                        self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
+                                    }
 
-                            if self.cursor.cy as usize > self.rows[self.cursor.cx as usize].render.len() {
-                                self.cursor.cy -= 1;
-                            }
-                        },
-                    _ => ()
-                    }
-                } else {
-                    self.row_insert_char(self.cursor.cy as usize, c);
-                    self.move_cursor(Keys::Right);
-                }
-            }
-            Keys::Enter => {
-                if let Mode::Normal = self.mode {
+                                    if self.cursor.cy as usize > self.rows[self.cursor.cx as usize].render.len() {
+                                        self.cursor.cy -= 1;
+                                    }
+                                },
+                            ':' => {
+                                    self.mode = Mode::Command;
+                                    self.status = ":".to_string();
+                                },
+                            _ => ()
+
+                        }
+                    },
+                Keys::Enter => {
                     if self.cursor.cx < self.num_rows {
                         self.move_cursor(Keys::Down);
                     }
-                } else {
-                    let line = self.rows[self.cursor.cx as usize].row.clone();
-                    let currline = &line[..self.cursor.cy as usize];
-                    let newline = &line[self.cursor.cy as usize..];
-                    self.rows[self.cursor.cx as usize].row = currline.to_string();
-                    self.update_line(self.cursor.cx as usize);
+                },
+                Keys::BackSpace => {
+                        self.move_cursor(Keys::Left);
+              
+                },
+                Keys::Esc => {
+                    self.mode = Mode::Normal;
+                    self.status = "-- NORMAL --".to_string();
+                },
+                Keys::Left => self.move_cursor(Keys::Left),
+                Keys::Down => self.move_cursor(Keys::Down),
+                Keys::Up => self.move_cursor(Keys::Up),
+                Keys::Right => self.move_cursor(Keys::Right),
+            
+                Keys::Home => self.cursor.cy = 0, 
+                Keys::End => if self.cursor.cx < self.num_rows { self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16},
+                Keys::PageUp => {
+                    self.cursor.cx = self.rowoffset;
+                    for _ in 0..self.size.1 {
+                        self.move_cursor(Keys::Up);
+                    }
+                },
+                Keys::PageDown => {
+                    self.cursor.cx = self.rowoffset + self.size.1 - 1;
+                    if self.cursor.cx > self.num_rows {
+                        self.cursor.cx = self.num_rows - 1;
+                    }
+                    for _ in 0..self.size.1 {
+                        self.move_cursor(Keys::Down);
+                    }
+                },
+                _ => ()
+                }
+            },
+            Mode::Insert => {
+                match key {
+                    Keys::Char(c) => {
+                        self.row_insert_char(self.cursor.cy as usize, c);
+                        self.move_cursor(Keys::Right);
+                    },
+                    Keys::Enter => {
+                        let line = self.rows[self.cursor.cx as usize].row.clone();
+                        let currline = &line[..self.cursor.cy as usize];
+                        let newline = &line[self.cursor.cy as usize..];
+                        self.rows[self.cursor.cx as usize].row = currline.to_string();
+                        self.update_line(self.cursor.cx as usize);
 
-                    self.cursor.cx += 1;
-                    self.rows.insert(self.cursor.cx as usize, Line { row: newline.to_string(), render: newline.to_string() });
-                    self.update_line(self.cursor.cx as usize);
+                        self.cursor.cx += 1;
+                        self.rows.insert(self.cursor.cx as usize, Line { row: newline.to_string(), render: newline.to_string() });
+                        self.update_line(self.cursor.cx as usize);
 
-                    self.cursor.cy = 0;
-                    self.num_rows += 1;
-                    self.dirty += 1;
+                        self.cursor.cy = 0;
+                        self.num_rows += 1;
+                        self.dirty += 1;
+                    },
+                    Keys::BackSpace => {
+                        let row_idx = self.cursor.cx as usize;
+                        let col_idx = self.cursor.cy as usize;
+
+                        if col_idx > 0 {
+                            self.rows[row_idx].row.remove(col_idx - 1);
+                            self.update_line(row_idx);
+                            self.move_cursor(Keys::Left);
+                        } else if row_idx > 0 {
+                            let prev_line_len = self.rows[row_idx - 1].row.len();
+                            let current_line = self.rows[row_idx].row.clone();
+                            self.rows[row_idx - 1].row.push_str(&current_line);
+                            self.rows.remove(row_idx);
+
+                            self.cursor.cy = prev_line_len as u16;
+                            self.update_line(row_idx - 1);
+
+                            self.num_rows -= 1;
+                            self.move_cursor(Keys::Up);
+                        }  
+                    },
+                    Keys::Esc => {
+                        self.mode = Mode::Normal;
+                        self.status = "-- NORMAL --".to_string();
+                    },
+                    Keys::Left => self.move_cursor(Keys::Left),
+                    Keys::Down => self.move_cursor(Keys::Down),
+                    Keys::Up => self.move_cursor(Keys::Up),
+                    Keys::Right => self.move_cursor(Keys::Right),
+                
+                    Keys::Home => self.cursor.cy = 0, 
+                    Keys::End => if self.cursor.cx < self.num_rows { self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16},
+                    Keys::PageUp => {
+                        self.cursor.cx = self.rowoffset;
+                        for _ in 0..self.size.1 {
+                            self.move_cursor(Keys::Up);
+                        }
+                    },
+                    Keys::PageDown => {
+                        self.cursor.cx = self.rowoffset + self.size.1 - 1;
+                        if self.cursor.cx > self.num_rows {
+                            self.cursor.cx = self.num_rows - 1;
+                        }
+                        for _ in 0..self.size.1 {
+                            self.move_cursor(Keys::Down);
+                        }
+                    },
+                    _ => ()
+                }
+            },
+            Mode::Command => {
+                match key {
+                    Keys::Char(c) => self.status.push(c),
+                    Keys::Esc => {
+                        self.mode = Mode::Normal;
+                        self.status = "-- NORMAL --".to_string();
+                    },
+                    Keys::BackSpace => {
+                        self.status.pop();
+                    },
+                    Keys::Enter => {
+                        self.execute_command();
+                    }
+                    _ => ()
                 }
             }
-            Keys::BackSpace => {
-                if let Mode::Normal = self.mode {
-                    self.move_cursor(Keys::Left);
-                } else {
-                    let row_idx = self.cursor.cx as usize;
-                    let col_idx = self.cursor.cy as usize;
-
-                    if col_idx > 0 {
-                        self.rows[row_idx].row.remove(col_idx - 1);
-                        self.update_line(row_idx);
-                        self.move_cursor(Keys::Left);
-                    } else if row_idx > 0 {
-                        let prev_line_len = self.rows[row_idx - 1].row.len();
-                        let current_line = self.rows[row_idx].row.clone();
-                        self.rows[row_idx - 1].row.push_str(&current_line);
-                        self.rows.remove(row_idx);
-
-                        self.cursor.cy = prev_line_len as u16;
-                        self.update_line(row_idx - 1);
-
-                        self.num_rows -= 1;
-                        self.move_cursor(Keys::Up);
-                    }                
-                }
-            },
-            Keys::Esc => {
-                self.mode = Mode::Normal;
-                self.status = "-- NORMAL --".to_string();
-            },
-            Keys::Left => self.move_cursor(Keys::Left),
-            Keys::Down => self.move_cursor(Keys::Down),
-            Keys::Up => self.move_cursor(Keys::Up),
-            Keys::Right => self.move_cursor(Keys::Right),
-            
-            Keys::Home => self.cursor.cy = 0, 
-            Keys::End => if self.cursor.cx < self.num_rows { self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16},
-            Keys::PageUp => {
-                self.cursor.cx = self.rowoffset;
-                for _ in 0..self.size.1 {
-                    self.move_cursor(Keys::Up);
-                }
-            },
-            Keys::PageDown => {
-                self.cursor.cx = self.rowoffset + self.size.1 - 1;
-                if self.cursor.cx > self.num_rows {
-                    self.cursor.cx = self.num_rows;
-                }
-                for _ in 0..self.size.1 {
-                    self.move_cursor(Keys::Down);
-                }
-            },
-            Keys::SaveFile => self.save(),
-            _ => ()
         }
     }
 
@@ -425,6 +479,11 @@ impl Terminal {
         }
 
         self.dirty += 1;
+    }
+
+    fn execute_command(&mut self) {
+        self.status = "-- NORMAL --".to_string();
+        self.mode = Mode::Normal;
     }
 
 }
