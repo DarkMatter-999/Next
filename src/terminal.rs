@@ -7,10 +7,11 @@ use std::fs;
 use std::io::BufRead;
 
 use crossterm::terminal::{enable_raw_mode, size};
-// use crossterm::{execute, cursor::Show};
 
 use crate::input::{Input, Keys};
+use crate::markdown::parse_md;
 
+#[derive(PartialEq, Eq)]
 enum Mode {
     Normal,
     Insert,
@@ -44,7 +45,6 @@ pub struct Terminal {
 
 impl Terminal {
     pub fn new() -> Terminal {
-        // execute!(io::stdout(),Show).unwrap();
 
         match enable_raw_mode() {
             Ok(()) => (),
@@ -141,7 +141,7 @@ impl Terminal {
         self.term_buf.push_str("\x1b[?25l");
         self.term_buf.push_str("\x1b[H");
 
-        self.fill_row('~');
+        self.render_row('~');
 
         self.draw_status_bar(); 
         self.draw_message_bar(); 
@@ -167,7 +167,7 @@ impl Terminal {
             self.handle_input(key);
 
             self.refresh_screen();
-            // fill_row('~', self.size.1);
+            // render_row('~', self.size.1);
 
             self.draw_screen();
             io::stdout().flush().unwrap();
@@ -191,11 +191,11 @@ impl Terminal {
         }
     }
 
-    fn fill_row(&mut self, c: char) {
+    fn render_row(&mut self, c: char) {
         for i in 0..self.size.1 {
             let filerow = i + self.rowoffset;
             if filerow >= self.num_rows {
-                let welcome = "Next Version 1.0".to_string();
+                let welcome = "Next Version 1.1".to_string();
 
                 if self.num_rows == 0 && i == self.size.1 / 3 {
                     let mut padding = String::new();
@@ -210,7 +210,13 @@ impl Terminal {
                     self.term_buf.push(c);
                 }
             } else {
-                let current_line = &self.rows[filerow as usize].render;
+                let mut current_line = &self.rows[filerow as usize].row;
+
+                let parsed_line: String;
+                if self.cursor.cx != i {
+                    parsed_line = parse_md(&self.rows[filerow as usize].render);
+                    current_line = &parsed_line;
+                }
 
                 if current_line.len() > self.size.0.into() {
                     self.term_buf.push_str(&current_line[self.coloffset as usize..(self.coloffset + self.size.0 - 1).into()]);
