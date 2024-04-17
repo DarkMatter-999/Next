@@ -1,4 +1,4 @@
-use std::{fmt::Pointer, io};
+use std::io;
 use std::io::Write;
 use std::process::exit;
 use std::error::Error;
@@ -23,9 +23,9 @@ struct Cursor {
     cy: u16
 }
 
-struct Line {
-    row: String,
-    render: String,
+pub struct Line {
+    pub row: String,
+    pub render: String,
 }
 
 pub struct Terminal {
@@ -166,6 +166,7 @@ impl Terminal {
             let key = self.input.handle_input();
             self.handle_input(key);
 
+            parse_md(&mut self.rows);
             self.refresh_screen();
             // render_row('~', self.size.1);
 
@@ -212,10 +213,8 @@ impl Terminal {
             } else {
                 let mut current_line = &self.rows[filerow as usize].row;
 
-                let parsed_line: String;
-                if self.cursor.cx != i {
-                    parsed_line = parse_md(&self.rows[filerow as usize].render);
-                    current_line = &parsed_line;
+                if self.cursor.cx != i || self.mode == Mode::Normal {
+                    current_line = &self.rows[filerow as usize].render;
                 }
 
                 if current_line.len() > self.size.0.into() {
