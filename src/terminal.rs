@@ -94,6 +94,9 @@ impl Terminal {
                 },
                 Err(err) => self.status = err.to_string()
             }
+        } else {
+            self.mode = Mode::Command;
+            self.status = ":w ".to_string();
         }
 
     }
@@ -351,6 +354,9 @@ impl Terminal {
                         self.move_cursor(Keys::Down);
                     }
                 },
+                Keys::SaveFile => {
+                        self.save();
+                    }
                 _ => ()
                 }
             },
@@ -487,7 +493,18 @@ impl Terminal {
     }
 
     fn execute_command(&mut self) {
-        self.status = "-- NORMAL --".to_string();
+        let status: Vec<&str> = self.status.split_whitespace().collect();
+
+        match status[0] {
+            ":w" => {
+                self.filename = Some(self.status[3..].to_string());
+                self.save();
+                self.status = "-- NORMAL --".to_string();
+            },
+            _ => {
+                self.status = "Invalid Command".to_string();
+            }
+        }
         self.mode = Mode::Normal;
     }
 

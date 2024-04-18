@@ -1,7 +1,7 @@
 use crate::terminal::Line;
 use regex::Regex;
 
-static DEFAULT_RULES: [(&str, &str); 12] = [
+static DEFAULT_RULES: [(&str, &str); 13] = [
     (r#"^#{6}\s?([^\n]+)"#, "\x1b[1;34m$1\x1b[0m"), // H6
     (r#"^#{5}\s?([^\n]+)"#, "\x1b[1;35m$1\x1b[0m"), // H5
     (r#"^#{4}\s?([^\n]+)"#, "\x1b[1;36m$1\x1b[0m"), // H4
@@ -10,6 +10,7 @@ static DEFAULT_RULES: [(&str, &str); 12] = [
     (r#"^#{1}\s?([^\n]+)"#, "\x1b[1;31m$1\x1b[0m"), // H1
     (r#"\*\*\s?([^\n]+)\*\*"#, "\x1b[1m$1\x1b[0m"), // Bold
     (r#"\_\_\s?([^\n]+)\_\_"#, "\x1b[1m$1\x1b[0m"), // Bold
+    (r#"^\*\s?([^\n]+)$"#, "• $1\x1b[0m"),          // Points
     (r#"\*\s?([^\n]+)\*"#, "\x1b[3m$1\x1b[0m"),     // Italics
     (r#"\_\s?([^\n]+)\_"#, "\x1b[3m$1\x1b[0m"),     // Italics
     (r#"\!\[([^\]]+)\]\((\S+)\)"#, "$1(\x1b[4;34m$2\x1b[0m)"), // Image links
