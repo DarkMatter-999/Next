@@ -21,7 +21,7 @@ const UNDERLINE: &str = "\x1b[4m";
 const ITALIC: &str = "\x1b[3m";
 
 
-pub fn parse_md(text:&mut Vec<Line>) {
+pub fn parse_lines_to_markdown(text:&mut Vec<Line>) {
     for i in 0..text.len() {
         let mut parsed_line = text[i].row.clone();
 
@@ -32,4 +32,15 @@ pub fn parse_md(text:&mut Vec<Line>) {
         
         text[i].render = parsed_line;
     }
+}
+
+pub fn parse_line_to_markdown(text: String) -> String {
+        let mut parsed_line = text;
+
+        for (pattern, replacement) in DEFAULT_RULES.iter() {
+            let re = Regex::new(pattern).unwrap();
+            parsed_line = re.replace_all(&parsed_line, *replacement).to_string();
+        }
+        
+        return parsed_line;
 }

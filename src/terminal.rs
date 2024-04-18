@@ -9,7 +9,7 @@ use std::io::BufRead;
 use crossterm::terminal::{enable_raw_mode, size};
 
 use crate::input::{Input, Keys};
-use crate::markdown::parse_md;
+use crate::markdown::parse_line_to_markdown;
 
 #[derive(PartialEq, Eq)]
 enum Mode {
@@ -113,7 +113,8 @@ impl Terminal {
             }
         }
 
-        let line = Line { row, render };
+        let markdown = parse_line_to_markdown(render);
+        let line = Line { row, render: markdown };
         self.rows.push(line);
     }
 
@@ -129,7 +130,7 @@ impl Terminal {
             }
         }
 
-        let line = Line { row: row.to_string(), render };
+        let line = Line { row: row.to_string(), render: parse_line_to_markdown(render) };
         self.rows[idx] = line;
 
     } 
@@ -166,7 +167,6 @@ impl Terminal {
             let key = self.input.handle_input();
             self.handle_input(key);
 
-            parse_md(&mut self.rows);
             self.refresh_screen();
             // render_row('~', self.size.1);
 
@@ -237,12 +237,12 @@ impl Terminal {
                 self.cursor.cy -= 1
             } else if self.cursor.cx > 0 {
                 self.cursor.cx -= 1;
-                self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
+                self.cursor.cy = self.rows[self.cursor.cx as usize].row.len() as u16;
             },
             Keys::Down => if self.cursor.cx < self.num_rows {
                 self.cursor.cx += 1;
                 if self.cursor.cx < self.num_rows {
-                    let row_len = self.rows[self.cursor.cx as usize].render.len() as u16;
+                    let row_len = self.rows[self.cursor.cx as usize].row.len() as u16;
                     if self.cursor.cy > row_len {
                         self.cursor.cy = row_len;
                     }
@@ -253,14 +253,14 @@ impl Terminal {
             Keys::Up => if self.cursor.cx != 0 {
                 self.cursor.cx -= 1;
                 if self.cursor.cx < self.num_rows {
-                    let row_len = self.rows[self.cursor.cx as usize].render.len() as u16;
+                    let row_len = self.rows[self.cursor.cx as usize].row.len() as u16;
                     if self.cursor.cy > row_len {
                         self.cursor.cy = row_len;
                     }
                 }
             },
             Keys::Right => if self.cursor.cx < self.num_rows {
-                let row_len = self.rows[self.cursor.cx as usize].render.len() as u16;
+                let row_len = self.rows[self.cursor.cx as usize].row.len() as u16;
                 if self.cursor.cy < row_len {
                     self.cursor.cy += 1;
                 } else if self.cursor.cy == row_len {
@@ -273,8 +273,8 @@ impl Terminal {
             _ => ()
         }
         
-        if self.cursor.cy > self.rows[self.cursor.cx as usize].render.len() as u16 {
-            self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
+        if self.cursor.cy > self.rows[self.cursor.cx as usize].row.len() as u16 {
+            self.cursor.cy = self.rows[self.cursor.cx as usize].row.len() as u16;
         }
     }
 
@@ -301,10 +301,10 @@ impl Terminal {
 
                                     if self.cursor.cx >= self.num_rows {
                                         self.cursor.cx -= 1;
-                                        self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16;
+                                        self.cursor.cy = self.rows[self.cursor.cx as usize].row.len() as u16;
                                     }
 
-                                    if self.cursor.cy as usize > self.rows[self.cursor.cx as usize].render.len() {
+                                    if self.cursor.cy as usize > self.rows[self.cursor.cx as usize].row.len() {
                                         self.cursor.cy -= 1;
                                     }
                                 },
@@ -335,7 +335,7 @@ impl Terminal {
                 Keys::Right => self.move_cursor(Keys::Right),
             
                 Keys::Home => self.cursor.cy = 0, 
-                Keys::End => if self.cursor.cx < self.num_rows { self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16},
+                Keys::End => if self.cursor.cx < self.num_rows { self.cursor.cy = self.rows[self.cursor.cx as usize].row.len() as u16},
                 Keys::PageUp => {
                     self.cursor.cx = self.rowoffset;
                     for _ in 0..self.size.1 {
@@ -406,7 +406,7 @@ impl Terminal {
                     Keys::Right => self.move_cursor(Keys::Right),
                 
                     Keys::Home => self.cursor.cy = 0, 
-                    Keys::End => if self.cursor.cx < self.num_rows { self.cursor.cy = self.rows[self.cursor.cx as usize].render.len() as u16},
+                    Keys::End => if self.cursor.cx < self.num_rows { self.cursor.cy = self.rows[self.cursor.cx as usize].row.len() as u16},
                     Keys::PageUp => {
                         self.cursor.cx = self.rowoffset;
                         for _ in 0..self.size.1 {
