@@ -1,3 +1,4 @@
+use std::fmt::format;
 use std::io;
 use std::io::Write;
 use std::process::exit;
@@ -10,6 +11,7 @@ use crossterm::terminal::{enable_raw_mode, size};
 
 use crate::input::{Input, Keys};
 use crate::markdown::parse_line_to_markdown;
+use crate::screen::clear_screen;
 
 #[derive(PartialEq, Eq)]
 enum Mode {
@@ -164,6 +166,9 @@ impl Terminal {
     }
 
     pub fn run(self: &mut Terminal) {
+        self.refresh_screen();
+        self.draw_screen();
+
         loop {
             // clear_screen();
  
@@ -497,15 +502,25 @@ impl Terminal {
 
         match status[0] {
             ":w" => {
-                self.filename = Some(self.status[3..].to_string());
-                self.save();
-                self.status = "-- NORMAL --".to_string();
+                if status.len() > 1 {
+                    self.filename = Some(status[1].to_string());
+                    self.save();
+                    self.status = "-- NORMAL --".to_string();
+                    self.mode = Mode::Normal;
+                } else {
+                    self.status = ":w ".to_string();
+                }
             },
+            ":q" => {
+                println!("Exiting.");
+                clear_screen();
+                exit(0);
+            }
             _ => {
                 self.status = "Invalid Command".to_string();
+                self.mode = Mode::Normal;
             }
         }
-        self.mode = Mode::Normal;
     }
 
 }
